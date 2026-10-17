@@ -64,3 +64,17 @@ function guideFile_(){const it=DriveApp.getFolderById(ROOT_ID).getFilesByName(GU
 function readGuides_(file){if(!file)return {revision:0,guides:{}};const data=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(!Number.isInteger(data.revision)||!data.guides)throw Error('文字設定格式不正確');return data;}
 function readGuideSettings(){return withLock_(()=>readGuides_(guideFile_()));}
 function writeGuideSettings(guides,expectedRevision){return withLock_(()=>{if(!guides||typeof guides.asset!=='string'||typeof guides.workflow!=='string'||guides.asset.length>20000||guides.workflow.length>20000)throw Error('每段文字最多 20,000 字');let file=guideFile_();const before=readGuides_(file);if(before.revision!==expectedRevision)throw Error('雲端文字版本已更新，請複製保留草稿後重新載入');const result={revision:before.revision+1,guides:{asset:guides.asset,workflow:guides.workflow}};const text=JSON.stringify(result);if(file)file.setContent(text);else DriveApp.getFolderById(ROOT_ID).createFile(GUIDES_NAME,text,MimeType.PLAIN_TEXT);return result;});}
+
+function validateCatalog_(data){
+ if(!data||!Array.isArray(data.themes)||!Array.isArray(data.spots)||data.themes.length>100||data.spots.length>300)throw Error('最多 100 個主題、300 個據點');
+ const ids=new Set(),names={themes:new Set(),spots:new Set()};
+ const clean=(row,kind)=>{if(!row||typeof row.id!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(row.id)||ids.has(row.id))throw Error('編號不正確或重複');ids.add(row.id);if(typeof row.name!=='string'||!row.name.trim()||row.name.trim().length>80)throw Error('名稱須為 1～80 字');const aliases=[...new Set([row.name.trim(),...(Array.isArray(row.aliases)?row.aliases:[])])];for(const name of aliases){if(typeof name!=='string'||!name.trim()||name.length>80||names[kind].has(name))throw Error('名稱或舊名稱重複，請使用不同名稱');names[kind].add(name);}return{id:row.id,name:row.name.trim(),aliases:aliases.filter(n=>n!==row.name.trim())};};
+ const themes=data.themes.map(r=>clean(r,'themes')),themeIds=new Set(themes.map(t=>t.id));
+ const spots=data.spots.map(r=>{const n=clean(r,'spots');if(!themeIds.has(r.themeId))throw Error('每個據點都必須指定有效主題');if(typeof r.desc!=='string'||r.desc.length>2000)throw Error('據點說明最多 2,000 字');return {...n,themeId:r.themeId,desc:r.desc};});return{themes,spots};
+}
+
+const CATALOG_NAME='_neimen_cultural_catalog_v1.json';
+function catalogFile_(){const it=DriveApp.getFolderById(ROOT_ID).getFilesByName(CATALOG_NAME);if(!it.hasNext())return null;const file=it.next();if(it.hasNext())throw Error('據點設定檔重複，請先整理');return file;}
+function readCatalog_(file){if(!file)return {revision:0,catalog:null};const data=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(!Number.isInteger(data.revision))throw Error('據點設定版本不正確');return {revision:data.revision,catalog:validateCatalog_(data.catalog)};}
+function readCatalogSettings(){return withLock_(()=>readCatalog_(catalogFile_()));}
+function writeCatalogSettings(catalog,expectedRevision){return withLock_(()=>{const next=validateCatalog_(catalog);const file=catalogFile_(),before=readCatalog_(file);if(before.revision!==expectedRevision)throw Error('雲端據點版本已更新，請先複製保留草稿，再重新開啟頁面合併');const result={revision:before.revision+1,catalog:next},text=JSON.stringify(result);if(file)file.setContent(text);else DriveApp.getFolderById(ROOT_ID).createFile(CATALOG_NAME,text,MimeType.PLAIN_TEXT);return result;});}
