@@ -1,3 +1,6 @@
+// Only Google-provided active-user identity is accepted; never trust client email or effective user.
+const ALLOWED_EDITOR_EMAILS=['CONFIGURE_OWNER_EMAIL','CONFIGURE_EDITOR_EMAIL'];
+function requireEditor_(){const email=String(Session.getActiveUser().getEmail()||'').trim().toLowerCase();if(!email)throw Error('Google 未提供登入帳號，無法驗證成員。請使用受邀的學校帳號；跨 Workspace 網域可能無法使用擁有者模式，請聯絡管理者。');if(ALLOWED_EDITOR_EMAILS.indexOf(email)<0)throw Error('此 Google 帳號未列入工作區允許名單，請切換為受邀帳號。');return email;}
 const ROOT_ID='CONFIGURE_DRIVE_FOLDER_0';
 const INDEX_NAME='_neimen_material_index_v1.json';
 const FOLDERS={
@@ -7,9 +10,9 @@ const FOLDERS={
  'CONFIGURE_DRIVE_FOLDER_4':['捷可 (剪輯/文案統籌)','採訪文字'],
  'CONFIGURE_DRIVE_FOLDER_5':['盈萱 (形象角色/錄製)','導覽圖文']
 };
-function doGet(){return HtmlService.createHtmlOutputFromFile('Index').setTitle('內門文化地圖｜雲端工作區');}
+function doGet(){try{requireEditor_();return HtmlService.createHtmlOutputFromFile('Index').setTitle('內門文化地圖｜雲端工作區');}catch(e){const message=String(e.message).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));return HtmlService.createHtmlOutput('<html lang="zh-TW"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><body style="font-family:sans-serif;padding:3rem;line-height:1.8"><h1>無法進入工作區</h1><p>'+message+'</p><p>請確認 Google 目前登入的帳號，再重新開啟工作區。</p></body></html>').setTitle('工作區存取限制');}}
 // Names ending in _ cannot be called through google.script.run.
-function withLock_(action){const lock=LockService.getScriptLock();lock.waitLock(30000);try{return action();}finally{lock.releaseLock();}}
+function withLock_(action){requireEditor_();const lock=LockService.getScriptLock();lock.waitLock(30000);try{return action();}finally{lock.releaseLock();}}
 function workspaceFile_(name,key,initial){
  const properties=PropertiesService.getScriptProperties(),id=properties.getProperty(key);
  if(id){try{const file=DriveApp.getFileById(id);if(file.isTrashed())throw Error('檔案在垃圾桶');return file;}catch(e){throw Error('無法存取共用設定檔 '+name+'，請確認此帳戶對工作區及設定檔有權限；不會另建私人副本。');}}
@@ -32,11 +35,13 @@ function commit_(file,data){const text=JSON.stringify(data);if(Utilities.newBlob
 function readWorkspace(){return withLock_(()=>readIndex_(indexFile_()));}
 function writeWorkspace(items,expectedRevision){return withLock_(()=>{const file=indexFile_(),data=readIndex_(file);if(data.revision!==expectedRevision)throw Error('雲端版本已更新；請匯出本機備份，再載入雲端版本');return commit_(file,{revision:data.revision+1,materials:validate_(items)});});}
 function listWorkspaceFolders(){
+ requireEditor_();
  const children=DriveApp.getFolderById(ROOT_ID).getFolders(),result=[];
  while(children.hasNext()){const folder=children.next();result.push({id:folder.getId(),name:folder.getName()});}
  return result.sort((a,b)=>a.name.localeCompare(b.name,'zh-TW'));
 }
 function listWorkspaceFiles(folderId){
+ requireEditor_();
  workspacePath_(folderId);
  const it=DriveApp.getFolderById(folderId).getFiles(),files=[];
  while(it.hasNext()){const f=it.next();files.push({id:f.getId(),name:f.getName(),url:f.getUrl()});}
@@ -56,6 +61,7 @@ function workspacePath_(folderId){
  throw Error('此資料夾不在指定工作區內，或沒有存取權限');
 }
 function browseWorkspaceFolder(folderId){
+ requireEditor_();
  const path=workspacePath_(folderId),folder=DriveApp.getFolderById(folderId),folders=[],files=[];
  const children=folder.getFolders();while(children.hasNext()){const f=children.next();folders.push({id:f.getId(),name:f.getName()});}
  const items=folder.getFiles();while(items.hasNext()){const f=items.next();files.push({id:f.getId(),name:f.getName(),url:f.getUrl()});}
