@@ -24,7 +24,7 @@ function validate_(items){
  if(!Array.isArray(items)||items.length>10000)throw Error('索引最多 10,000 筆');
  const ids={}; const statuses=['已採集未整理','內文撰寫中','影音剪輯中','已發布'];
  return items.map(m=>{if(!m||typeof m.id!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(m.id)||ids[m.id])throw Error('編號格式不正確或重複');ids[m.id]=true;
- if(typeof m.title!=='string'||!m.title.trim()||statuses.indexOf(m.status)<0)throw Error('標題或狀態不正確');
+ if(typeof m.title!=='string'||!m.title.trim()||typeof m.status!=='string'||!m.status.trim()||m.status.trim().length>80||['ALL','__custom__'].indexOf(m.status.trim())>=0)throw Error('標題或狀態不正確');
  const n={};['id','title','member','theme','location','status','type','image','driveLink','desc','note','createdAt'].forEach(k=>{if(m[k]!=null&&typeof m[k]!=='string')throw Error('欄位必須為文字');n[k]=(m[k]||'').slice(0,50000);});
  ['image','driveLink'].forEach(k=>{if(n[k]&&!/^https?:\/\//i.test(n[k]))throw Error('連結必須是 http 或 https');});return n;});
 }
