@@ -32,20 +32,6 @@ function listWorkspaceFolders(){
  while(children.hasNext()){const folder=children.next();result.push({id:folder.getId(),name:folder.getName()});}
  return result.sort((a,b)=>a.name.localeCompare(b.name,'zh-TW'));
 }
-function uploadWorkspaceFile(payload,expectedRevision){return withLock_(()=>{
- if(!payload||typeof payload.folderId!=='string'||!listWorkspaceFolders().some(f=>f.id===payload.folderId))throw Error('不允許的分類資料夾，請重新讀取分類');
- if(typeof payload.name!=='string'||!payload.name.trim()||payload.name.length>255)throw Error('檔名不正確');
- if(typeof payload.data!=='string'||payload.data.length>14*1024*1024)throw Error('檔案超過限制');
- const index=indexFile_(),data=readIndex_(index);if(data.revision!==expectedRevision)throw Error('雲端版本已更新，請先載入最新索引');
- const bytes=Utilities.base64Decode(payload.data);if(bytes.length>10*1024*1024)throw Error('每檔上限 10 MB');
- const folder=DriveApp.getFolderById(payload.folderId),parents=folder.getParents();let isChild=false;while(parents.hasNext()){if(parents.next().getId()===ROOT_ID)isChild=true;}if(!isChild)throw Error('分類資料夾不在指定工作區');
- const mime=typeof payload.mimeType==='string'&&/^[\w.+-]+\/[\w.+-]+$/.test(payload.mimeType)?payload.mimeType:'application/octet-stream';
- const upload=folder.createFile(Utilities.newBlob(bytes,mime,payload.name));
- try{const config=FOLDERS[payload.folderId]||['捷可 (剪輯/文案統籌)','導覽圖文'];const meta=payload.metadata||{};const text=(key,fallback)=>typeof meta[key]==='string'?meta[key].slice(0,50000):fallback;data.materials.unshift({id:'NM-'+Utilities.getUuid(),title:text('title','')?(text('title','')+' ｜ '+payload.name):payload.name,member:text('member',config[0]),theme:text('theme','採訪與文史紀錄'),location:text('location',''),status:text('status','已採集未整理'),type:text('type',config[1]),image:'',driveLink:upload.getUrl(),desc:text('desc','')+'\n批次上傳至「'+folder.getName()+'」；原始檔名：'+payload.name,note:text('note',''),createdAt:Utilities.formatDate(new Date(),'Asia/Taipei','yyyy-MM-dd')});
- data.materials=validate_(data.materials);data.revision++;return commit_(index,data);
- }catch(error){try{upload.setTrashed(true);}catch(cleanup){throw Error('索引更新失敗，檔案仍位於 Drive，請先確認再重試：'+error.message);}throw error;}
-});}
-
 function listWorkspaceFiles(folderId){
  workspacePath_(folderId);
  const it=DriveApp.getFolderById(folderId).getFiles(),files=[];
@@ -72,3 +58,9 @@ function browseWorkspaceFolder(folderId){
  const sort=(a,b)=>a.name.localeCompare(b.name,'zh-TW');
  return {id:folderId,name:folder.getName(),path,folders:folders.sort(sort),files:files.sort(sort)};
 }
+
+const GUIDES_NAME='_neimen_workspace_guides_v1.json';
+function guideFile_(){const it=DriveApp.getFolderById(ROOT_ID).getFilesByName(GUIDES_NAME);if(!it.hasNext())return null;const file=it.next();if(it.hasNext())throw Error('發現重複文字設定檔，請先整理');return file;}
+function readGuides_(file){if(!file)return {revision:0,guides:{}};const data=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(!Number.isInteger(data.revision)||!data.guides)throw Error('文字設定格式不正確');return data;}
+function readGuideSettings(){return withLock_(()=>readGuides_(guideFile_()));}
+function writeGuideSettings(guides,expectedRevision){return withLock_(()=>{if(!guides||typeof guides.asset!=='string'||typeof guides.workflow!=='string'||guides.asset.length>20000||guides.workflow.length>20000)throw Error('每段文字最多 20,000 字');let file=guideFile_();const before=readGuides_(file);if(before.revision!==expectedRevision)throw Error('雲端文字版本已更新，請複製保留草稿後重新載入');const result={revision:before.revision+1,guides:{asset:guides.asset,workflow:guides.workflow}};const text=JSON.stringify(result);if(file)file.setContent(text);else DriveApp.getFolderById(ROOT_ID).createFile(GUIDES_NAME,text,MimeType.PLAIN_TEXT);return result;});}
