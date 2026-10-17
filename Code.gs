@@ -10,11 +10,15 @@ const FOLDERS={
 function doGet(){return HtmlService.createHtmlOutputFromFile('Index').setTitle('內門文化地圖｜雲端工作區');}
 // Names ending in _ cannot be called through google.script.run.
 function withLock_(action){const lock=LockService.getScriptLock();lock.waitLock(30000);try{return action();}finally{lock.releaseLock();}}
-function indexFile_(){
- const root=DriveApp.getFolderById(ROOT_ID),it=root.getFilesByName(INDEX_NAME);
- if(it.hasNext()){const file=it.next();if(it.hasNext())throw Error('發現多個索引檔，請先整理，避免讀錯資料');return file;}
- return root.createFile(INDEX_NAME,JSON.stringify({revision:0,materials:[]}),MimeType.PLAIN_TEXT);
+function workspaceFile_(name,key,initial){
+ const properties=PropertiesService.getScriptProperties(),id=properties.getProperty(key);
+ if(id){try{const file=DriveApp.getFileById(id);if(file.isTrashed())throw Error('檔案在垃圾桶');return file;}catch(e){throw Error('無法存取共用設定檔 '+name+'，請確認此帳戶對工作區及設定檔有權限；不會另建私人副本。');}}
+ const root=DriveApp.getFolderById(ROOT_ID),it=root.getFilesByName(name);let file=null;
+ if(it.hasNext()){file=it.next();if(it.hasNext())throw Error('共用設定檔重複：'+name+'，請先整理');}
+ if(!file&&initial!==undefined)file=root.createFile(name,JSON.stringify(initial),MimeType.PLAIN_TEXT);
+ if(file)properties.setProperty(key,file.getId());return file;
 }
+function indexFile_(){return workspaceFile_(INDEX_NAME,'MATERIAL_INDEX_ID',{revision:0,materials:[]});}
 function readIndex_(file){const data=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(!Number.isInteger(data.revision)||!Array.isArray(data.materials))throw Error('雲端索引格式不正確');return data;}
 function validate_(items){
  if(!Array.isArray(items)||items.length>10000)throw Error('索引最多 10,000 筆');
@@ -60,10 +64,10 @@ function browseWorkspaceFolder(folderId){
 }
 
 const GUIDES_NAME='_neimen_workspace_guides_v1.json';
-function guideFile_(){const it=DriveApp.getFolderById(ROOT_ID).getFilesByName(GUIDES_NAME);if(!it.hasNext())return null;const file=it.next();if(it.hasNext())throw Error('發現重複文字設定檔，請先整理');return file;}
+function guideFile_(){return workspaceFile_(GUIDES_NAME,'GUIDE_SETTINGS_ID');}
 function readGuides_(file){if(!file)return {revision:0,guides:{}};const data=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(!Number.isInteger(data.revision)||!data.guides)throw Error('文字設定格式不正確');return data;}
 function readGuideSettings(){return withLock_(()=>readGuides_(guideFile_()));}
-function writeGuideSettings(guides,expectedRevision){return withLock_(()=>{if(!guides||typeof guides.asset!=='string'||typeof guides.workflow!=='string'||guides.asset.length>20000||guides.workflow.length>20000)throw Error('每段文字最多 20,000 字');let file=guideFile_();const before=readGuides_(file);if(before.revision!==expectedRevision)throw Error('雲端文字版本已更新，請複製保留草稿後重新載入');const result={revision:before.revision+1,guides:{asset:guides.asset,workflow:guides.workflow}};const text=JSON.stringify(result);if(file)file.setContent(text);else DriveApp.getFolderById(ROOT_ID).createFile(GUIDES_NAME,text,MimeType.PLAIN_TEXT);return result;});}
+function writeGuideSettings(guides,expectedRevision){return withLock_(()=>{if(!guides||typeof guides.asset!=='string'||typeof guides.workflow!=='string'||guides.asset.length>20000||guides.workflow.length>20000)throw Error('每段文字最多 20,000 字');let file=guideFile_();const before=readGuides_(file);if(before.revision!==expectedRevision)throw Error('雲端文字版本已更新，請複製保留草稿後重新載入');const result={revision:before.revision+1,guides:{asset:guides.asset,workflow:guides.workflow}};const text=JSON.stringify(result);if(file)file.setContent(text);else workspaceFile_(GUIDES_NAME,'GUIDE_SETTINGS_ID',result);return result;});}
 
 function validateCatalog_(data){
  if(!data||!Array.isArray(data.themes)||!Array.isArray(data.spots)||data.themes.length>100||data.spots.length>300)throw Error('最多 100 個主題、300 個據點');
@@ -74,7 +78,9 @@ function validateCatalog_(data){
 }
 
 const CATALOG_NAME='_neimen_cultural_catalog_v1.json';
-function catalogFile_(){const it=DriveApp.getFolderById(ROOT_ID).getFilesByName(CATALOG_NAME);if(!it.hasNext())return null;const file=it.next();if(it.hasNext())throw Error('據點設定檔重複，請先整理');return file;}
+function catalogFile_(){return workspaceFile_(CATALOG_NAME,'CATALOG_SETTINGS_ID');}
 function readCatalog_(file){if(!file)return {revision:0,catalog:null};const data=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(!Number.isInteger(data.revision))throw Error('據點設定版本不正確');return {revision:data.revision,catalog:validateCatalog_(data.catalog)};}
 function readCatalogSettings(){return withLock_(()=>readCatalog_(catalogFile_()));}
-function writeCatalogSettings(catalog,expectedRevision){return withLock_(()=>{const next=validateCatalog_(catalog);const file=catalogFile_(),before=readCatalog_(file);if(before.revision!==expectedRevision)throw Error('雲端據點版本已更新，請先複製保留草稿，再重新開啟頁面合併');const result={revision:before.revision+1,catalog:next},text=JSON.stringify(result);if(file)file.setContent(text);else DriveApp.getFolderById(ROOT_ID).createFile(CATALOG_NAME,text,MimeType.PLAIN_TEXT);return result;});}
+function writeCatalogSettings(catalog,expectedRevision){return withLock_(()=>{const next=validateCatalog_(catalog);const file=catalogFile_(),before=readCatalog_(file);if(before.revision!==expectedRevision)throw Error('雲端據點版本已更新，請先複製保留草稿，再重新開啟頁面合併');const result={revision:before.revision+1,catalog:next},text=JSON.stringify(result);if(file)file.setContent(text);else workspaceFile_(CATALOG_NAME,'CATALOG_SETTINGS_ID',result);return result;});}
+
+function readApplicationState(){return withLock_(()=>({workspace:readIndex_(indexFile_()),catalog:readCatalog_(catalogFile_()),guides:readGuides_(guideFile_())}));}
