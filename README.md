@@ -1,24 +1,15 @@
-# 內門文化地圖｜團隊協作工作區
+# 內門文化地圖｜公開共編工作區
 
-[網站入口](https://usc112520-coder.github.io/neimen-cultural-workspace/)
+[進入工作區](https://usc112520-coder.github.io/neimen-cultural-workspace/)
 
-GitHub Pages 提供正式系統入口；完整工作台在 Google Apps Script 執行。
+知道連結即可閱讀、編輯進度報告，支援自訂成員與進度狀態、雲端自動儲存及多層素材資料夾瀏覽。
 
-## 功能
+控制台使用密碼進入；評語、分類與指南設定的儲存由後端驗證控制台階段。正式密碼與 Drive 識別碼未放入此公開範本。
 
-- 團隊進度報告、看板、評語與控制台。
-- 逐層瀏覽 Drive 工作區，指定任一層的素材檔案或資料夾。
-- 點選分類入口，到 Google Drive 自行上傳；系統內已取消上傳區與上傳 API。
-- 控制台可修改素材庫、參考網址、關鍵字與 SOP 文字，設定獨立儲存到雲端。
-- 素材索引手動載入／儲存，含版本衝突檢查與 JSON 備份。
+Google Apps Script 以擁有者身分執行，網頁存取設定為所有人（包含匿名）。Google Drive 原始檔案分享權限維持原設定；進入 Drive 上傳或開啟原檔仍依照其權限。
 
-## 檔案
+- `index.html`：公開入口。
+- `Index.html`、`Code.gs`：已移除私人設定的 Apps Script 範本。
+- `appsscript.json`：部署設定參考。
 
-- index.html：公開網站入口。
-- Index.html、Code.gs：Apps Script 介面與後端範本。
-- appsscript.json：Apps Script 設定參考。
-
-公開範本中的 Drive 識別碼及密碼設定已替換為 CONFIGURE 佔位符。正式部署使用原有私人設定。
-Apps Script 以存取者自己的 Google 帳戶執行；使用者必須具有工作資料夾權限。控制台密碼為前端介面鎖，雲端資料權限由 Google Drive 控制。
-
-指南文字以純文字儲存與顯示，http/https 網址自動成為連結。文字設定使用獨立版本，避免覆蓋素材索引。
+公開範本的 `CONFIGURE` 佔位符需先填入私人設定。控制台後端使用 SHA-256 雜湊及短期驗證階段；前端含既有密碼驗證。共編資料採版本檢查以避免覆蓋其他人的更新。
