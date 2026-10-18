@@ -96,7 +96,7 @@ function readApplicationState(){return withLock_(()=>({workspace:readIndex_(inde
 function readReportThumbnail(reportId){
  const report=readWorkspace().materials.find(m=>m.id===reportId);
  if(!report||report.image||!report.driveLink)return null;
- const link=report.driveLink,match=link.match(/^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/)||link.match(/^https:\/\/drive\.google\.com\/(?:open|uc)\?id=([A-Za-z0-9_-]+)/);
+ const link=report.driveLink,match=reportFileId_(link);
  if(!match)return null;
  try{
   const file=DriveApp.getFileById(match[1]);if(file.isTrashed())return null;
@@ -115,9 +115,17 @@ function readReportLocation(reportId){
  try{
   const folderMatch=link.match(/^https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([A-Za-z0-9_-]+)/);
   if(folderMatch)return {path:workspacePath_(folderMatch[1]),fileName:''};
-  const match=link.match(/^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/)||link.match(/^https:\/\/drive\.google\.com\/(?:open|uc)\?id=([A-Za-z0-9_-]+)/);
+  const match=reportFileId_(link);
   if(!match)return null;
   const file=DriveApp.getFileById(match[1]);if(file.isTrashed())return null;
   const parents=file.getParents();while(parents.hasNext()){try{return{path:workspacePath_(parents.next().getId()),fileName:file.getName()};}catch(e){}}
  }catch(e){}return null;
+}
+
+// Drive can return Office files with Docs/Sheets/Slides editor URLs.
+function reportFileId_(link){
+ if(typeof link!=='string')return null;
+ return link.match(/^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)(?:[/?#]|$)/)
+  ||link.match(/^https:\/\/docs\.google\.com\/(?:document|spreadsheets|presentation|drawings|forms)\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]+)(?:[/?#]|$)/)
+  ||(/^https:\/\/drive\.google\.com\/(?:open|uc)\?/.test(link)?link.match(/[?&]id=([A-Za-z0-9_-]+)(?:[&#]|$)/):null);
 }
