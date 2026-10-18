@@ -91,3 +91,20 @@ function readCatalogSettings(){return withLock_(()=>readCatalog_(catalogFile_())
 function writeCatalogSettings(catalog,expectedRevision,consoleToken){requireConsole_(consoleToken);return withLock_(()=>{const next=validateCatalog_(catalog);const file=catalogFile_(),before=readCatalog_(file);if(before.revision!==expectedRevision)throw Error('雲端據點版本已更新，請先複製保留草稿，再重新開啟頁面合併');const result={revision:before.revision+1,catalog:next},text=JSON.stringify(result);if(file)file.setContent(text);else workspaceFile_(CATALOG_NAME,'CATALOG_SETTINGS_ID',result);return result;});}
 
 function readApplicationState(){return withLock_(()=>({workspace:readIndex_(indexFile_()),catalog:readCatalog_(catalogFile_()),guides:readGuides_(guideFile_())}));}
+
+// Only files explicitly referenced by a saved report can supply public previews.
+function readReportThumbnail(reportId){
+ const report=readWorkspace().materials.find(m=>m.id===reportId);
+ if(!report||report.image||!report.driveLink)return null;
+ const link=report.driveLink,match=link.match(/^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/)||link.match(/^https:\/\/drive\.google\.com\/(?:open|uc)\?id=([A-Za-z0-9_-]+)/);
+ if(!match)return null;
+ try{
+  const file=DriveApp.getFileById(match[1]);if(file.isTrashed())return null;
+  const parents=file.getParents();let inside=false;while(parents.hasNext()){try{workspacePath_(parents.next().getId());inside=true;break;}catch(e){}}
+  if(!inside)return null;
+  const thumbnail=file.getThumbnail();if(!thumbnail)return null;
+  const mime=thumbnail.getContentType(),bytes=thumbnail.getBytes();
+  if(!/^image\/(png|jpeg|gif|webp)$/.test(mime)||bytes.length>1024*1024)return null;
+  return {driveLink:link,image:'data:'+mime+';base64,'+Utilities.base64Encode(bytes)};
+ }catch(e){return null;}
+}
