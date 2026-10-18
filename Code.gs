@@ -34,7 +34,7 @@ function validate_(items){
 }
 function commit_(file,data){const text=JSON.stringify(data);if(Utilities.newBlob(text).getBytes().length>8*1024*1024)throw Error('索引超過 8 MB');file.setContent(text);return data;}
 function readWorkspace(){return withLock_(()=>readIndex_(indexFile_()));}
-function writeWorkspace(items,expectedRevision,consoleToken){return withLock_(()=>{const file=indexFile_(),data=readIndex_(file);if(data.revision!==expectedRevision)throw Error('雲端版本已更新；請匯出本機備份，再載入雲端版本');const next=validate_(items);if(next.some(m=>{const previous=data.materials.find(p=>p.id===m.id);return m.note!==(previous?previous.note||'':'');}))requireConsole_(consoleToken);return commit_(file,{revision:data.revision+1,materials:next});});}
+function writeWorkspace(items,expectedRevision,consoleToken){return withLock_(()=>{const file=indexFile_(),data=readIndex_(file);if(data.revision!==expectedRevision)throw Error('雲端版本已更新；請匯出本機備份，再載入雲端版本');const next=validate_(items);for(const report of next){const old=data.materials.find(m=>m.id===report.id);if((!old||Object.keys(report).some(k=>report[k]!==(old[k]||'')))&&(!report.member.trim()||report.member.trim().length>100||report.member.trim()==='__custom__'))throw Error('請指定角色／負責成員後再儲存進度報告');}if(next.some(m=>{const previous=data.materials.find(p=>p.id===m.id);return m.note!==(previous?previous.note||'':'');}))requireConsole_(consoleToken);return commit_(file,{revision:data.revision+1,materials:next});});}
 function listWorkspaceFolders(){
  
  const children=DriveApp.getFolderById(ROOT_ID).getFolders(),result=[];
