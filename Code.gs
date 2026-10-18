@@ -108,3 +108,16 @@ function readReportThumbnail(reportId){
   return {driveLink:link,image:'data:'+mime+';base64,'+Utilities.base64Encode(bytes)};
  }catch(e){return null;}
 }
+
+function readReportLocation(reportId){
+ const report=readWorkspace().materials.find(m=>m.id===reportId);if(!report||!report.driveLink)return null;
+ const link=report.driveLink;
+ try{
+  const folderMatch=link.match(/^https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([A-Za-z0-9_-]+)/);
+  if(folderMatch)return {path:workspacePath_(folderMatch[1]),fileName:''};
+  const match=link.match(/^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/)||link.match(/^https:\/\/drive\.google\.com\/(?:open|uc)\?id=([A-Za-z0-9_-]+)/);
+  if(!match)return null;
+  const file=DriveApp.getFileById(match[1]);if(file.isTrashed())return null;
+  const parents=file.getParents();while(parents.hasNext()){try{return{path:workspacePath_(parents.next().getId()),fileName:file.getName()};}catch(e){}}
+ }catch(e){}return null;
+}
