@@ -129,3 +129,14 @@ function reportFileId_(link){
   ||link.match(/^https:\/\/docs\.google\.com\/(?:document|spreadsheets|presentation|drawings|forms)\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]+)(?:[/?#]|$)/)
   ||(/^https:\/\/drive\.google\.com\/(?:open|uc)\?/.test(link)?link.match(/[?&]id=([A-Za-z0-9_-]+)(?:[&#]|$)/):null);
 }
+
+function discussionFile_(){return workspaceFile_('_neimen_report_discussion_v1.json','REPORT_DISCUSSION_ID',{threads:{}});}
+function requireReport_(id){if(typeof id!=='string'||!readIndex_(indexFile_()).materials.some(m=>m.id===id))throw Error('此報告已不存在，請重新整理');}
+function readReportDiscussion(id){return withLock_(()=>{requireReport_(id);const data=JSON.parse(discussionFile_().getBlob().getDataAsString('UTF-8'));return data.threads[id]||{comments:[],reactions:[]};});}
+function writeReportDiscussion(id,member,kind,value){return withLock_(()=>{
+ requireReport_(id);if(typeof member!=='string'||!member.trim()||member.trim().length>100||member==='__custom__')throw Error('請指定回應成員');member=member.trim();
+ const file=discussionFile_(),data=JSON.parse(file.getBlob().getDataAsString('UTF-8')),thread=data.threads[id]||{comments:[],reactions:[]};
+ if(kind==='comment'){if(typeof value!=='string'||!value.trim()||value.length>2000)throw Error('留言須為 1～2,000 字');if(thread.comments.length>=500)throw Error('此報告留言已達上限');thread.comments.push({id:Utilities.getUuid(),member,text:value.trim(),createdAt:new Date().toISOString()});}
+ else if(kind==='reaction'){if(['👍','❤️','🎉','👏','💡'].indexOf(value)<0)throw Error('表情格式不正確');const index=thread.reactions.findIndex(r=>r.member===member&&r.emoji===value);if(index>=0)thread.reactions.splice(index,1);else{if(thread.reactions.length>=2000)throw Error('此報告表情已達上限');thread.reactions.push({member,emoji:value});}}
+ else throw Error('回應格式不正確');data.threads[id]=thread;commit_(file,data);return thread;
+});}
