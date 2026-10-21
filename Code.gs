@@ -6,10 +6,10 @@ const ROOT_ID='CONFIGURE_DRIVE_FOLDER_0';
 const INDEX_NAME='_neimen_material_index_v1.json';
 const FOLDERS={
  'CONFIGURE_DRIVE_FOLDER_1':['捷可 (剪輯/文案統籌)','短影音'],
- 'CONFIGURE_DRIVE_FOLDER_2':['盈萱 (形象角色/錄製)','導覽圖文'],
+ 'CONFIGURE_DRIVE_FOLDER_2':['盈瑄 (形象角色/錄製)','導覽圖文'],
  'CONFIGURE_DRIVE_FOLDER_3':['奕婷 (宣傳圖卡製作)','宣傳圖卡'],
  'CONFIGURE_DRIVE_FOLDER_4':['捷可 (剪輯/文案統籌)','採訪文字'],
- 'CONFIGURE_DRIVE_FOLDER_5':['盈萱 (形象角色/錄製)','導覽圖文']
+ 'CONFIGURE_DRIVE_FOLDER_5':['盈瑄 (形象角色/錄製)','導覽圖文']
 };
 function doGet(){return HtmlService.createHtmlOutputFromFile('Index').setTitle('內門文化地圖｜公開共編工作區');}
 // Names ending in _ cannot be called through google.script.run.
@@ -23,7 +23,7 @@ function workspaceFile_(name,key,initial){
  if(file)properties.setProperty(key,file.getId());return file;
 }
 function indexFile_(){return workspaceFile_(INDEX_NAME,'MATERIAL_INDEX_ID',{revision:0,materials:[]});}
-function readIndex_(file){const data=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(!Number.isInteger(data.revision)||!Array.isArray(data.materials))throw Error('雲端索引格式不正確');return data;}
+function readIndex_(file){const data=JSON.parse(file.getBlob().getDataAsString('UTF-8').replace(/盈萱/g,'盈瑄'));if(!Number.isInteger(data.revision)||!Array.isArray(data.materials))throw Error('雲端索引格式不正確');return data;}
 function validate_(items){
  if(!Array.isArray(items)||items.length>10000)throw Error('索引最多 10,000 筆');
  const ids={}; const statuses=['已採集未整理','內文撰寫中','影音剪輯中','已發布'];
@@ -72,7 +72,7 @@ function browseWorkspaceFolder(folderId){
 
 const GUIDES_NAME='_neimen_workspace_guides_v1.json';
 function guideFile_(){return workspaceFile_(GUIDES_NAME,'GUIDE_SETTINGS_ID');}
-function readGuides_(file){if(!file)return {revision:0,guides:{}};const data=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(!Number.isInteger(data.revision)||!data.guides)throw Error('文字設定格式不正確');return data;}
+function readGuides_(file){if(!file)return {revision:0,guides:{}};const data=JSON.parse(file.getBlob().getDataAsString('UTF-8').replace(/盈萱/g,'盈瑄'));if(!Number.isInteger(data.revision)||!data.guides)throw Error('文字設定格式不正確');return data;}
 function readGuideSettings(){return withLock_(()=>readGuides_(guideFile_()));}
 function writeGuideSettings(guides,expectedRevision,consoleToken){requireConsole_(consoleToken);return withLock_(()=>{if(!guides||typeof guides.asset!=='string'||typeof guides.workflow!=='string'||guides.asset.length>20000||guides.workflow.length>20000)throw Error('每段文字最多 20,000 字');let file=guideFile_();const before=readGuides_(file);if(before.revision!==expectedRevision)throw Error('雲端文字版本已更新，請複製保留草稿後重新載入');const result={revision:before.revision+1,guides:{asset:guides.asset,workflow:guides.workflow}};const text=JSON.stringify(result);if(file)file.setContent(text);else workspaceFile_(GUIDES_NAME,'GUIDE_SETTINGS_ID',result);return result;});}
 
@@ -86,7 +86,7 @@ function validateCatalog_(data){
 
 const CATALOG_NAME='_neimen_cultural_catalog_v1.json';
 function catalogFile_(){return workspaceFile_(CATALOG_NAME,'CATALOG_SETTINGS_ID');}
-function readCatalog_(file){if(!file)return {revision:0,catalog:null};const data=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(!Number.isInteger(data.revision))throw Error('據點設定版本不正確');return {revision:data.revision,catalog:validateCatalog_(data.catalog)};}
+function readCatalog_(file){if(!file)return {revision:0,catalog:null};const data=JSON.parse(file.getBlob().getDataAsString('UTF-8').replace(/盈萱/g,'盈瑄'));if(!Number.isInteger(data.revision))throw Error('據點設定版本不正確');return {revision:data.revision,catalog:validateCatalog_(data.catalog)};}
 function readCatalogSettings(){return withLock_(()=>readCatalog_(catalogFile_()));}
 function writeCatalogSettings(catalog,expectedRevision,consoleToken){requireConsole_(consoleToken);return withLock_(()=>{const next=validateCatalog_(catalog);const file=catalogFile_(),before=readCatalog_(file);if(before.revision!==expectedRevision)throw Error('雲端據點版本已更新，請先複製保留草稿，再重新開啟頁面合併');const result={revision:before.revision+1,catalog:next},text=JSON.stringify(result);if(file)file.setContent(text);else workspaceFile_(CATALOG_NAME,'CATALOG_SETTINGS_ID',result);return result;});}
 
@@ -132,10 +132,10 @@ function reportFileId_(link){
 
 function discussionFile_(){return workspaceFile_('_neimen_report_discussion_v1.json','REPORT_DISCUSSION_ID',{threads:{}});}
 function requireReport_(id){if(typeof id!=='string'||!readIndex_(indexFile_()).materials.some(m=>m.id===id))throw Error('此報告已不存在，請重新整理');}
-function readReportDiscussion(id){return withLock_(()=>{requireReport_(id);const data=JSON.parse(discussionFile_().getBlob().getDataAsString('UTF-8'));return data.threads[id]||{comments:[],reactions:[]};});}
+function readReportDiscussion(id){return withLock_(()=>{requireReport_(id);const data=JSON.parse(discussionFile_().getBlob().getDataAsString('UTF-8').replace(/盈萱/g,'盈瑄'));return data.threads[id]||{comments:[],reactions:[]};});}
 function writeReportDiscussion(id,member,kind,value){return withLock_(()=>{
  requireReport_(id);if(typeof member!=='string'||!member.trim()||member.trim().length>100||member==='__custom__')throw Error('請指定回應成員');member=member.trim();
- const file=discussionFile_(),data=JSON.parse(file.getBlob().getDataAsString('UTF-8')),thread=data.threads[id]||{comments:[],reactions:[]};
+ const file=discussionFile_(),data=JSON.parse(file.getBlob().getDataAsString('UTF-8').replace(/盈萱/g,'盈瑄')),thread=data.threads[id]||{comments:[],reactions:[]};
  if(kind==='comment'){if(typeof value!=='string'||!value.trim()||value.length>2000)throw Error('留言須為 1～2,000 字');if(thread.comments.length>=500)throw Error('此報告留言已達上限');thread.comments.push({id:Utilities.getUuid(),member,text:value.trim(),createdAt:new Date().toISOString()});}
  else if(kind==='reaction'){if(['👍','❤️','🎉','👏','💡'].indexOf(value)<0)throw Error('表情格式不正確');const index=thread.reactions.findIndex(r=>r.member===member&&r.emoji===value);if(index>=0)thread.reactions.splice(index,1);else{if(thread.reactions.length>=2000)throw Error('此報告表情已達上限');thread.reactions.push({member,emoji:value});}}
  else throw Error('回應格式不正確');data.threads[id]=thread;commit_(file,data);return thread;
